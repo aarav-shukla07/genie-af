@@ -1,6 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('overlay', {
-  show: () => ipcRenderer.invoke('overlay:show'),
-  hide: () => ipcRenderer.invoke('overlay:hide')
+  close: () => ipcRenderer.invoke('overlay:self-close')
 });
