@@ -2,72 +2,308 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Overlay</title>
+  <title>Screenshot Overlay</title>
   <style>
-    html, body {
-      margin: 0; padding: 0; height: 100%; width: 100%;
-      background: transparent;  /* keep window transparent */
+    html, body { 
+      margin: 0; 
+      padding: 0;
+      height: 100vh; 
+      width: 100vw;
+      background: transparent; 
+      overflow: hidden;
+      font-family: Arial, sans-serif;
     }
-    /* The card is visible but window background stays transparent */
-    .overlay {
-      width: 100%; height: 100%;
-      box-sizing: border-box;
-      padding: 12px;
-      border-radius: 16px;
-      /* Semi-transparent background so users can see it's there */
-      background: rgba(30, 30, 30, 0.7);
-      color: #f1f1f1;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+    
+    .overlay-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.3);
     }
-
-    /* Make only the header the draggable region */
-    .header {
-      -webkit-app-region: drag;  /* drag the whole window by this area */
-      font-weight: 600;
-      padding: 8px 12px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 12px;
+    
+    .grid-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
     }
-
-    .content {
-      -webkit-app-region: no-drag; /* allow clicks inside content */
-      flex: 1; display: flex; align-items: center; justify-content: center;
+    
+    .grid-line {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.3);
+      pointer-events: none;
     }
-
-    .actions {
-      -webkit-app-region: no-drag;
-      display: flex; gap: 8px; justify-content: flex-end;
+    
+    .grid-line.vertical {
+      width: 1px;
+      height: 100%;
     }
-
-    button {
-      padding: 8px 12px;
+    
+    .grid-line.horizontal {
+      height: 1px;
+      width: 100%;
+    }
+    
+    .selection-area {
+      position: absolute;
+      border: 2px solid #00ff00;
+      background: rgba(0, 255, 0, 0.1);
+      pointer-events: none;
+      display: none;
+    }
+    
+    .controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 15px;
       border-radius: 10px;
+      z-index: 1000;
+      pointer-events: auto;
+    }
+    
+    .controls h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+    }
+    
+    .controls button {
+      background: #4CAF50;
+      color: white;
       border: none;
+      padding: 8px 16px;
+      margin: 5px;
+      border-radius: 5px;
       cursor: pointer;
-      background: rgba(255,255,255,0.15);
-      color: #fff;
+      font-size: 12px;
+    }
+    
+    .controls button:hover {
+      background: #45a049;
+    }
+    
+    .controls button.cancel {
+      background: #f44336;
+    }
+    
+    .controls button.cancel:hover {
+      background: #da190b;
+    }
+    
+    .instructions {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 15px;
+      border-radius: 10px;
+      z-index: 1000;
+      pointer-events: none;
+      font-size: 12px;
+    }
+    
+    .selection-info {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 10px 15px;
+      border-radius: 8px;
+      z-index: 1000;
+      pointer-events: none;
+      font-size: 14px;
+      display: none;
     }
   </style>
 </head>
 <body>
-  <div class="overlay">
-    <div class="header">Drag me to move the overlay</div>
-
-    <div class="content">
-      <div>Overlay is on top. Resize via edges; move via header.</div>
+  <div class="overlay-container" id="overlayContainer">
+    <div class="grid-overlay" id="gridOverlay"></div>
+    <div class="selection-area" id="selectionArea"></div>
+    
+    <div class="controls">
+      <h3>Screenshot Tool</h3>
+      <button id="captureBtn">Capture Selected Area</button>
+      <button id="fullScreenBtn">Capture Full Screen</button>
+      <button id="cancelBtn" class="cancel">Cancel</button>
     </div>
-
-    <div class="actions">
-      <button id="closeBtn">Close</button>
+    
+    <div class="instructions">
+      <strong>Instructions:</strong><br>
+      • Click and drag to select an area<br>
+      • Use grid lines as guides<br>
+      • Press ESC to cancel
+    </div>
+    
+    <div class="selection-info" id="selectionInfo">
+      Selection: <span id="selectionSize">0 x 0</span>
     </div>
   </div>
 
   <script>
-    document.getElementById('closeBtn').addEventListener('click', () => {
-      window.overlay?.close();
+    let isSelecting = false;
+    let startX = 0;
+    let startY = 0;
+    let currentX = 0;
+    let currentY = 0;
+    let selectionArea = null;
+    let selectionInfo = null;
+    let gridOverlay = null;
+
+    // Initialize the interface
+    document.addEventListener('DOMContentLoaded', () => {
+      selectionArea = document.getElementById('selectionArea');
+      selectionInfo = document.getElementById('selectionInfo');
+      gridOverlay = document.getElementById('gridOverlay');
+      
+      createGrid();
+      setupEventListeners();
     });
+
+    function createGrid() {
+      const gridSize = 50; // Grid spacing in pixels
+      const container = document.getElementById('overlayContainer');
+      const rect = container.getBoundingClientRect();
+      
+      // Create vertical lines
+      for (let x = gridSize; x < rect.width; x += gridSize) {
+        const line = document.createElement('div');
+        line.className = 'grid-line vertical';
+        line.style.left = x + 'px';
+        gridOverlay.appendChild(line);
+      }
+      
+      // Create horizontal lines
+      for (let y = gridSize; y < rect.height; y += gridSize) {
+        const line = document.createElement('div');
+        line.className = 'grid-line horizontal';
+        line.style.top = y + 'px';
+        gridOverlay.appendChild(line);
+      }
+    }
+
+    function setupEventListeners() {
+      const container = document.getElementById('overlayContainer');
+      
+      // Mouse events for selection
+      container.addEventListener('mousedown', startSelection);
+      container.addEventListener('mousemove', updateSelection);
+      container.addEventListener('mouseup', endSelection);
+      
+      // Button events
+      document.getElementById('captureBtn').addEventListener('click', captureSelectedArea);
+      document.getElementById('fullScreenBtn').addEventListener('click', captureFullScreen);
+      document.getElementById('cancelBtn').addEventListener('click', closeOverlay);
+      
+      // Keyboard events
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeOverlay();
+        }
+      });
+    }
+
+    function startSelection(e) {
+      if (e.target.closest('.controls')) return; // Don't start selection from controls
+      
+      isSelecting = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      currentX = startX;
+      currentY = startY;
+      
+      selectionArea.style.display = 'block';
+      selectionInfo.style.display = 'block';
+      updateSelectionDisplay();
+    }
+
+    function updateSelection(e) {
+      if (!isSelecting) return;
+      
+      currentX = e.clientX;
+      currentY = e.clientY;
+      updateSelectionDisplay();
+    }
+
+    function endSelection() {
+      isSelecting = false;
+    }
+
+    function updateSelectionDisplay() {
+      const left = Math.min(startX, currentX);
+      const top = Math.min(startY, currentY);
+      const width = Math.abs(currentX - startX);
+      const height = Math.abs(currentY - startY);
+      
+      selectionArea.style.left = left + 'px';
+      selectionArea.style.top = top + 'px';
+      selectionArea.style.width = width + 'px';
+      selectionArea.style.height = height + 'px';
+      
+      document.getElementById('selectionSize').textContent = `${width} x ${height}`;
+    }
+
+    async function captureSelectedArea() {
+      const left = parseInt(selectionArea.style.left);
+      const top = parseInt(selectionArea.style.top);
+      const width = parseInt(selectionArea.style.width);
+      const height = parseInt(selectionArea.style.height);
+      
+      if (width === 0 || height === 0) {
+        alert('Please select an area first');
+        return;
+      }
+      
+      try {
+        console.log("📸 Capturing selected area:", { left, top, width, height });
+        
+        const result = await window.overlay.captureArea(null, {
+          x: left,
+          y: top,
+          width: width,
+          height: height
+        });
+        
+        if (result) {
+          alert(`✅ Screenshot saved: ${result}`);
+          closeOverlay();
+        } else {
+          alert("❌ Failed to save screenshot.");
+        }
+      } catch (err) {
+        console.error("Screenshot error:", err);
+        alert("Screenshot failed: " + err.message);
+      }
+    }
+
+    async function captureFullScreen() {
+      try {
+        console.log("📸 Capturing full screen");
+        
+        const result = await window.overlay.captureFullScreen(null);
+        
+        if (result) {
+          alert(`✅ Screenshot saved: ${result}`);
+          closeOverlay();
+        } else {
+          alert("❌ Failed to save screenshot.");
+        }
+      } catch (err) {
+        console.error("Screenshot error:", err);
+        alert("Screenshot failed: " + err.message);
+      }
+    }
+
+    function closeOverlay() {
+      window.overlay.close();
+    }
   </script>
 </body>
 </html>
