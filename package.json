@@ -1,0 +1,23 @@
+{
+  "name": "genie-af",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aarav-shukla07/genie-af.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/aarav-shukla07/genie-af/issues"
+  },
+  "homepage": "https://github.com/aarav-shukla07/genie-af#readme",
+  "description": "",
+  "devDependencies": {
+    "electron": "^37.3.1"
+  }
+}
