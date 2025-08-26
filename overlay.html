@@ -2,308 +2,182 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Screenshot Overlay</title>
+  <title>Genie AI</title>
   <style>
-    html, body { 
-      margin: 0; 
-      padding: 0;
-      height: 100vh; 
-      width: 100vw;
-      background: transparent; 
-      overflow: hidden;
+    body {
+      margin: 0;
       font-family: Arial, sans-serif;
-    }
-    
-    .overlay-container {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.3);
-    }
-    
-    .grid-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
       pointer-events: none;
     }
-    
-    .grid-line {
-      position: absolute;
-      background: rgba(255, 255, 255, 0.3);
-      pointer-events: none;
-    }
-    
-    .grid-line.vertical {
-      width: 1px;
-      height: 100%;
-    }
-    
-    .grid-line.horizontal {
-      height: 1px;
-      width: 100%;
-    }
-    
-    .selection-area {
-      position: absolute;
-      border: 2px solid #00ff00;
-      background: rgba(0, 255, 0, 0.1);
-      pointer-events: none;
-      display: none;
-    }
-    
-    .controls {
+
+    #genieBox {
       position: fixed;
-      top: 20px;
-      right: 20px;
-      background: rgba(0, 0, 0, 0.8);
+      top: 50px;
+      right: 50px;
+      width: 450px;
+      height: 600px;
+      background: rgba(0,0,0,0.85);
       color: white;
-      padding: 15px;
-      border-radius: 10px;
-      z-index: 1000;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      overflow: hidden;
+      resize: both;
       pointer-events: auto;
     }
-    
-    .controls h3 {
-      margin: 0 0 10px 0;
-      font-size: 14px;
+
+    #header {
+      background: rgba(0,0,0,0.9);
+      padding: 12px;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      cursor: move;
+      pointer-events: auto;
     }
-    
-    .controls button {
-      background: #4CAF50;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      margin: 5px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 12px;
+
+    #chatWindow {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      pointer-events: auto;
     }
-    
-    .controls button:hover {
-      background: #45a049;
-    }
-    
-    .controls button.cancel {
-      background: #f44336;
-    }
-    
-    .controls button.cancel:hover {
-      background: #da190b;
-    }
-    
-    .instructions {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 15px;
-      border-radius: 10px;
-      z-index: 1000;
-      pointer-events: none;
-      font-size: 12px;
-    }
-    
-    .selection-info {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.9);
-      color: white;
-      padding: 10px 15px;
+
+    .msg {
+      margin: 8px 0;
+      padding: 8px 12px;
       border-radius: 8px;
-      z-index: 1000;
-      pointer-events: none;
-      font-size: 14px;
-      display: none;
+      max-width: 75%;
+      white-space: pre-wrap;
     }
+
+    .user { background: rgba(0, 150, 255, 0.7); margin-left: auto; }
+    .ai { background: rgba(0, 255, 150, 0.7); margin-right: auto; }
+
+    #inputArea {
+      display: flex;
+      padding: 8px;
+      background: rgba(0,0,0,0.8);
+      pointer-events: auto;
+    }
+
+    #userInput {
+      flex: 1;
+      resize: none;
+      border-radius: 6px;
+      padding: 6px;
+      border: none;
+      outline: none;
+    }
+
+    #sendBtn, #screenshotBtn {
+      margin-left: 6px;
+      padding: 0 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    #sendBtn { background: #4CAF50; color: white; }
+    #sendBtn:hover { background: #45a049; }
+
+    #screenshotBtn { background: #f39c12; color: white; }
+    #screenshotBtn:hover { background: #e67e22; }
   </style>
 </head>
 <body>
-  <div class="overlay-container" id="overlayContainer">
-    <div class="grid-overlay" id="gridOverlay"></div>
-    <div class="selection-area" id="selectionArea"></div>
-    
-    <div class="controls">
-      <h3>Screenshot Tool</h3>
-      <button id="captureBtn">Capture Selected Area</button>
-      <button id="fullScreenBtn">Capture Full Screen</button>
-      <button id="cancelBtn" class="cancel">Cancel</button>
-    </div>
-    
-    <div class="instructions">
-      <strong>Instructions:</strong><br>
-      • Click and drag to select an area<br>
-      • Use grid lines as guides<br>
-      • Press ESC to cancel
-    </div>
-    
-    <div class="selection-info" id="selectionInfo">
-      Selection: <span id="selectionSize">0 x 0</span>
+  <div id="genieBox">
+    <div id="header">✨ Genie — Ask me or Screenshot!</div>
+    <div id="chatWindow"><em>Start by asking a question, or click 📸</em></div>
+    <div id="inputArea">
+      <textarea id="userInput" rows="1" placeholder="Type here..."></textarea>
+      <button id="sendBtn">Send</button>
+      <button id="screenshotBtn">📸</button>
     </div>
   </div>
 
   <script>
-    let isSelecting = false;
-    let startX = 0;
-    let startY = 0;
-    let currentX = 0;
-    let currentY = 0;
-    let selectionArea = null;
-    let selectionInfo = null;
-    let gridOverlay = null;
+    const chatWindow = document.getElementById('chatWindow');
+    const input = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const screenshotBtn = document.getElementById('screenshotBtn');
+    const genieBox = document.getElementById("genieBox");
+const header = document.getElementById("header");
+let offsetX, offsetY, isDragging = false;
 
-    // Initialize the interface
-    document.addEventListener('DOMContentLoaded', () => {
-      selectionArea = document.getElementById('selectionArea');
-      selectionInfo = document.getElementById('selectionInfo');
-      gridOverlay = document.getElementById('gridOverlay');
-      
-      createGrid();
-      setupEventListeners();
+header.addEventListener("mousedown", e => {
+  isDragging = true;
+  offsetX = e.clientX - genieBox.offsetLeft;
+  offsetY = e.clientY - genieBox.offsetTop;
+});
+
+document.addEventListener("mousemove", e => {
+  if (isDragging) {
+    genieBox.style.left = (e.clientX - offsetX) + "px";
+    genieBox.style.top = (e.clientY - offsetY) + "px";
+  }
+});
+
+document.addEventListener("mouseup", () => {
+  isDragging = false;
+});
+
+
+    function appendMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      div.textContent = text;
+      chatWindow.appendChild(div);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const prompt = input.value.trim();
+      if (!prompt) return;
+      appendMessage("user", prompt);
+      input.value = "";
+
+      appendMessage("ai", "⏳ Thinking...");
+      const placeholders = chatWindow.querySelectorAll(".ai");
+      const lastAi = placeholders[placeholders.length-1];
+
+      try {
+        const answer = await window.overlay.askAI(prompt);
+        lastAi.textContent = answer;
+      } catch (err) {
+        lastAi.textContent = "❌ Error: " + err.message;
+      }
+    }
+
+    async function explainScreenshot() {
+      appendMessage("user", "📸 Screenshot taken — explain this!");
+      appendMessage("ai", "✨ Genie is finding...");
+
+      const placeholders = chatWindow.querySelectorAll(".ai");
+      const lastAi = placeholders[placeholders.length-1];
+
+      try {
+        const extractedText = await window.overlay.captureAndExtract();
+        const explanation = await window.overlay.askAI(
+          "Explain this content in detail:\n" + extractedText
+        );
+        lastAi.textContent = explanation;
+      } catch (err) {
+        lastAi.textContent = "❌ Screenshot error: " + err.message;
+      }
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
     });
 
-    function createGrid() {
-      const gridSize = 50; // Grid spacing in pixels
-      const container = document.getElementById('overlayContainer');
-      const rect = container.getBoundingClientRect();
-      
-      // Create vertical lines
-      for (let x = gridSize; x < rect.width; x += gridSize) {
-        const line = document.createElement('div');
-        line.className = 'grid-line vertical';
-        line.style.left = x + 'px';
-        gridOverlay.appendChild(line);
-      }
-      
-      // Create horizontal lines
-      for (let y = gridSize; y < rect.height; y += gridSize) {
-        const line = document.createElement('div');
-        line.className = 'grid-line horizontal';
-        line.style.top = y + 'px';
-        gridOverlay.appendChild(line);
-      }
-    }
-
-    function setupEventListeners() {
-      const container = document.getElementById('overlayContainer');
-      
-      // Mouse events for selection
-      container.addEventListener('mousedown', startSelection);
-      container.addEventListener('mousemove', updateSelection);
-      container.addEventListener('mouseup', endSelection);
-      
-      // Button events
-      document.getElementById('captureBtn').addEventListener('click', captureSelectedArea);
-      document.getElementById('fullScreenBtn').addEventListener('click', captureFullScreen);
-      document.getElementById('cancelBtn').addEventListener('click', closeOverlay);
-      
-      // Keyboard events
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-          closeOverlay();
-        }
-      });
-    }
-
-    function startSelection(e) {
-      if (e.target.closest('.controls')) return; // Don't start selection from controls
-      
-      isSelecting = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      currentX = startX;
-      currentY = startY;
-      
-      selectionArea.style.display = 'block';
-      selectionInfo.style.display = 'block';
-      updateSelectionDisplay();
-    }
-
-    function updateSelection(e) {
-      if (!isSelecting) return;
-      
-      currentX = e.clientX;
-      currentY = e.clientY;
-      updateSelectionDisplay();
-    }
-
-    function endSelection() {
-      isSelecting = false;
-    }
-
-    function updateSelectionDisplay() {
-      const left = Math.min(startX, currentX);
-      const top = Math.min(startY, currentY);
-      const width = Math.abs(currentX - startX);
-      const height = Math.abs(currentY - startY);
-      
-      selectionArea.style.left = left + 'px';
-      selectionArea.style.top = top + 'px';
-      selectionArea.style.width = width + 'px';
-      selectionArea.style.height = height + 'px';
-      
-      document.getElementById('selectionSize').textContent = `${width} x ${height}`;
-    }
-
-    async function captureSelectedArea() {
-      const left = parseInt(selectionArea.style.left);
-      const top = parseInt(selectionArea.style.top);
-      const width = parseInt(selectionArea.style.width);
-      const height = parseInt(selectionArea.style.height);
-      
-      if (width === 0 || height === 0) {
-        alert('Please select an area first');
-        return;
-      }
-      
-      try {
-        console.log("📸 Capturing selected area:", { left, top, width, height });
-        
-        const result = await window.overlay.captureArea(null, {
-          x: left,
-          y: top,
-          width: width,
-          height: height
-        });
-        
-        if (result) {
-          alert(`✅ Screenshot saved: ${result}`);
-          closeOverlay();
-        } else {
-          alert("❌ Failed to save screenshot.");
-        }
-      } catch (err) {
-        console.error("Screenshot error:", err);
-        alert("Screenshot failed: " + err.message);
-      }
-    }
-
-    async function captureFullScreen() {
-      try {
-        console.log("📸 Capturing full screen");
-        
-        const result = await window.overlay.captureFullScreen(null);
-        
-        if (result) {
-          alert(`✅ Screenshot saved: ${result}`);
-          closeOverlay();
-        } else {
-          alert("❌ Failed to save screenshot.");
-        }
-      } catch (err) {
-        console.error("Screenshot error:", err);
-        alert("Screenshot failed: " + err.message);
-      }
-    }
-
-    function closeOverlay() {
-      window.overlay.close();
-    }
+    screenshotBtn.addEventListener("click", explainScreenshot);
   </script>
 </body>
 </html>

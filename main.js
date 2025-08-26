@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
 const { promisify } = require('util');
+const fetch = require('cross-fetch');
+const Tesseract = require('tesseract.js');
 
 const execAsync = promisify(exec);
 
@@ -152,9 +154,10 @@ async function nativeScreenshot(bounds = null) {
     let sources = [];
     try {
       // First try with standard approach
+      const { width, height } = screen.getPrimaryDisplay().bounds;
       sources = await desktopCapturer.getSources({ 
         types: ['screen'],
-        thumbnailSize: { width: 1920, height: 1080 }
+        thumbnailSize: { width, height }
       });
       console.log(`✅ Found ${sources.length} screen sources`);
     } catch (err) {
@@ -217,6 +220,60 @@ async function nativeScreenshot(bounds = null) {
   } catch (err) {
     console.error("❌ Native screenshot failed:", err);
     throw err;
+  }
+}
+
+// Capture to PNG buffer (no file write). Hides overlay during capture.
+async function captureToBuffer(bounds) {
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.hide();
+    await new Promise(r => setTimeout(r, 120));
+  }
+  try {
+    const { width, height } = screen.getPrimaryDisplay().bounds;
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width, height } });
+    if (!sources.length) throw new Error('No screen source');
+    const baseImage = sources[0].thumbnail; // nativeImage
+    const cropped = bounds
+      ? baseImage.crop({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height })
+      : baseImage;
+    return cropped.toPNG();
+  } finally {
+    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.show();
+  }
+}
+
+// OCR using Tesseract.js
+async function extractTextFromImageBuffer(pngBuffer) {
+  const { data } = await Tesseract.recognize(pngBuffer, 'eng', { logger: () => {} });
+  return (data && data.text) ? data.text.trim() : '';
+}
+
+// Ollama text generation
+async function generateWithOllama(prompt) {
+  try {
+    const res = await fetch("http://localhost:11434/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama3.1:8b",
+        messages: [
+          { role: "system", content: "You are a helpful assistant that provides concise, clear explanations." },
+          { role: "user", content: prompt }
+        ],
+        stream: false
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      return `Ollama API error (${res.status}): ${errorText}`;
+    }
+
+    const data = await res.json();
+    return data.message.content;
+  } catch (err) {
+    return `Failed to connect to Ollama: ${err.message}. Make sure Ollama is running on localhost:11434`;
   }
 }
 
@@ -294,6 +351,43 @@ ipcMain.handle('overlay:capture-fullscreen', async (event, sourceId) => {
   }
 });
 
+// IPC: explain selected area - capture -> OCR -> Ollama
+ipcMain.handle('overlay:explain-selection', async (event, bounds) => {
+  try {
+    const pngBuffer = await captureToBuffer(bounds);
+    const text = await extractTextFromImageBuffer(pngBuffer);
+    const enhancedPrompt = `You are an expert technical explainer.
+
+Extracted text from a screenshot:
+"""
+${text}
+"""
+
+Task:
+- Identify the context (UI, code, error, etc.)
+- Provide a concise, beginner-friendly explanation
+- List 3-5 key takeaways
+- If it looks like code or error logs, include likely next steps.
+
+Keep it short, clear, and formatted with bullet points.`;
+    const answer = await generateWithOllama(enhancedPrompt);
+    return { ocrText: text, answer };
+  } catch (err) {
+    console.error('❌ explain-selection failed:', err);
+    return { ocrText: '', answer: `Failed: ${err.message}` };
+  }
+});
+
+// IPC: ask AI freeform
+ipcMain.handle('overlay:ask-ai', async (event, userPrompt) => {
+  try {
+    const answer = await generateWithOllama(userPrompt);
+    return answer;
+  } catch (err) {
+    console.error('❌ ask-ai failed:', err);
+    return `Failed: ${err.message}`;
+  }
+});
 
 // Optional: allow overlay to request closing itself
 ipcMain.handle('overlay:self-close', () => {
